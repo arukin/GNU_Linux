@@ -229,5 +229,163 @@ Consistency Policy : resync
 Для начала создадим GPT раздел RAID-10, а затем создадим партиции. Позволю себе разбить их неравномерно.
 
 ```
+root@UBS:~# parted -s /dev/md0 mklabel gpt
+root@UBS:~#
+root@UBS:~# parted /dev/md0 mkpart primary ext4 0% 10%
+Information: You may need to update /etc/fstab.
+
+root@UBS:~# parted /dev/md0 mkpart primary ext4 10% 25%
+Information: You may need to update /etc/fstab.
+
+root@UBS:~# parted /dev/md0 mkpart primary ext4 25% 50%
+Information: You may need to update /etc/fstab.
+
+root@UBS:~# parted /dev/md0 mkpart primary ext4 50% 95%
+Information: You may need to update /etc/fstab.
+
+root@UBS:~# parted /dev/md0 mkpart primary ext4 95% 100%
+Information: You may need to update /etc/fstab.
+
+```
+8. Создадим на них файловые системы и смотритуем, чтобы можно было ими пользоваться.
+Приступим к форматированию в ext4
+
+```
+root@UBS:~# lsblk /dev/md0
+NAME    MAJ:MIN RM  SIZE RO TYPE   MOUNTPOINTS
+md0       9:0    0    2G  0 raid10
+├─md0p1 259:1    0  203M  0 part
+├─md0p2 259:4    0  307M  0 part
+├─md0p3 259:5    0  511M  0 part
+├─md0p4 259:8    0  920M  0 part
+└─md0p5 259:9    0  101M  0 part
+root@UBS:~#
+root@UBS:~# mkfs.ext4 /dev/md0p1
+mke2fs 1.47.0 (5-Feb-2023)
+Creating filesystem with 51968 4k blocks and 51968 inodes
+Filesystem UUID: 163142ce-c39b-4d6e-a8dc-89dd80d04e85
+Superblock backups stored on blocks:
+        32768
+
+Allocating group tables: done
+Writing inode tables: done
+Creating journal (4096 blocks): done
+Writing superblocks and filesystem accounting information: done
+
+```
+также по остальным партициям 2,3,4,5
+
+Смонтируем по каталогам
+```
+root@UBS:~# mkdir -p /raid/part{1,2,3,4,5}
+root@UBS:~# mount /dev/md0p1 /raid/part1
+root@UBS:~# mount /dev/md0p1 /raid/part2
+root@UBS:~# mount /dev/md0p1 /raid/part3
+root@UBS:~# mount /dev/md0p1 /raid/part4
+root@UBS:~# mount /dev/md0p1 /raid/part5
+
+```
+9. Проверим результаты работы
+
+```
+root@UBS:~# lsblk -f
+NAME      FSTYPE            FSVER LABEL UUID                                 FSAVAIL FSUSE% MOUNTPOINTS
+sda
+├─sda1
+└─sda2    ext4              1.0         14870e43-0110-49f3-aa39-a50aae2a6b93   20.4G    11% /
+sdb       linux_raid_member 1.2   UBS:0 cc513b0a-bd51-aeae-4192-a97c0236b539
+sdc       linux_raid_member 1.2   UBS:0 cc513b0a-bd51-aeae-4192-a97c0236b539
+└─md0
+  ├─md0p1 ext4              1.0         163142ce-c39b-4d6e-a8dc-89dd80d04e85  159.9M     0% /raid/part5
+  │                                                                                         /raid/part4
+  │                                                                                         /raid/part3
+  │                                                                                         /raid/part2
+  │                                                                                         /raid/part1
+  ├─md0p2 ext4              1.0         a1582b62-86e3-4827-977b-371d1bbde5d8
+  ├─md0p3 ext4              1.0         b7e36350-a2ac-4c8f-b237-bb98a00f652e
+  ├─md0p4 ext4              1.0         04bb42fa-cfd6-48a6-96bd-a4a89b044b2a
+  └─md0p5 ext4              1.0         a359777f-f6f7-45cd-9783-eb6803bd9459
+sdd       linux_raid_member 1.2   UBS:0 cc513b0a-bd51-aeae-4192-a97c0236b539
+└─md0
+  ├─md0p1 ext4              1.0         163142ce-c39b-4d6e-a8dc-89dd80d04e85  159.9M     0% /raid/part5
+  │                                                                                         /raid/part4
+  │                                                                                         /raid/part3
+  │                                                                                         /raid/part2
+  │                                                                                         /raid/part1
+  ├─md0p2 ext4              1.0         a1582b62-86e3-4827-977b-371d1bbde5d8
+  ├─md0p3 ext4              1.0         b7e36350-a2ac-4c8f-b237-bb98a00f652e
+  ├─md0p4 ext4              1.0         04bb42fa-cfd6-48a6-96bd-a4a89b044b2a
+  └─md0p5 ext4              1.0         a359777f-f6f7-45cd-9783-eb6803bd9459
+sde       linux_raid_member 1.2   UBS:0 cc513b0a-bd51-aeae-4192-a97c0236b539
+└─md0
+  ├─md0p1 ext4              1.0         163142ce-c39b-4d6e-a8dc-89dd80d04e85  159.9M     0% /raid/part5
+  │                                                                                         /raid/part4
+  │                                                                                         /raid/part3
+  │                                                                                         /raid/part2
+  │                                                                                         /raid/part1
+  ├─md0p2 ext4              1.0         a1582b62-86e3-4827-977b-371d1bbde5d8
+  ├─md0p3 ext4              1.0         b7e36350-a2ac-4c8f-b237-bb98a00f652e
+  ├─md0p4 ext4              1.0         04bb42fa-cfd6-48a6-96bd-a4a89b044b2a
+  └─md0p5 ext4              1.0         a359777f-f6f7-45cd-9783-eb6803bd9459
+sdf       linux_raid_member 1.2   UBS:0 cc513b0a-bd51-aeae-4192-a97c0236b539
+└─md0
+  ├─md0p1 ext4              1.0         163142ce-c39b-4d6e-a8dc-89dd80d04e85  159.9M     0% /raid/part5
+  │                                                                                         /raid/part4
+  │                                                                                         /raid/part3
+  │                                                                                         /raid/part2
+  │                                                                                         /raid/part1
+  ├─md0p2 ext4              1.0         a1582b62-86e3-4827-977b-371d1bbde5d8
+  ├─md0p3 ext4              1.0         b7e36350-a2ac-4c8f-b237-bb98a00f652e
+  ├─md0p4 ext4              1.0         04bb42fa-cfd6-48a6-96bd-a4a89b044b2a
+  └─md0p5 ext4              1.0         a359777f-f6f7-45cd-9783-eb6803bd9459
+sr0
+
+```
+10. Ужасаемся, что смонтировали 5 раз одну и туже партицию.
+Используем umount, чтобы убрать лишнее и монтируем заново, проверяем. Теперь порядок!
+
+```
+root@UBS:~# mount /dev/md0p1 /raid/part1
+root@UBS:~# mount /dev/md0p2 /raid/part2
+root@UBS:~# mount /dev/md0p3 /raid/part3
+root@UBS:~# mount /dev/md0p4 /raid/part4
+root@UBS:~# mount /dev/md0p5 /raid/part5
+root@UBS:~#
+root@UBS:~#
+root@UBS:~# lsblk -f
+NAME      FSTYPE            FSVER LABEL UUID                                 FSAVAIL FSUSE% MOUNTPOINTS
+sda
+├─sda1
+└─sda2    ext4              1.0         14870e43-0110-49f3-aa39-a50aae2a6b93   20.4G    11% /
+sdb       linux_raid_member 1.2   UBS:0 cc513b0a-bd51-aeae-4192-a97c0236b539
+sdc       linux_raid_member 1.2   UBS:0 cc513b0a-bd51-aeae-4192-a97c0236b539
+└─md0
+  ├─md0p1 ext4              1.0         163142ce-c39b-4d6e-a8dc-89dd80d04e85  159.9M     0% /raid/part1
+  ├─md0p2 ext4              1.0         a1582b62-86e3-4827-977b-371d1bbde5d8    250M     0% /raid/part2
+  ├─md0p3 ext4              1.0         b7e36350-a2ac-4c8f-b237-bb98a00f652e  426.5M     0% /raid/part3
+  ├─md0p4 ext4              1.0         04bb42fa-cfd6-48a6-96bd-a4a89b044b2a  825.3M     0% /raid/part4
+  └─md0p5 ext4              1.0         a359777f-f6f7-45cd-9783-eb6803bd9459   83.5M     0% /raid/part5
+sdd       linux_raid_member 1.2   UBS:0 cc513b0a-bd51-aeae-4192-a97c0236b539
+└─md0
+  ├─md0p1 ext4              1.0         163142ce-c39b-4d6e-a8dc-89dd80d04e85  159.9M     0% /raid/part1
+  ├─md0p2 ext4              1.0         a1582b62-86e3-4827-977b-371d1bbde5d8    250M     0% /raid/part2
+  ├─md0p3 ext4              1.0         b7e36350-a2ac-4c8f-b237-bb98a00f652e  426.5M     0% /raid/part3
+  ├─md0p4 ext4              1.0         04bb42fa-cfd6-48a6-96bd-a4a89b044b2a  825.3M     0% /raid/part4
+  └─md0p5 ext4              1.0         a359777f-f6f7-45cd-9783-eb6803bd9459   83.5M     0% /raid/part5
+sde       linux_raid_member 1.2   UBS:0 cc513b0a-bd51-aeae-4192-a97c0236b539
+└─md0
+  ├─md0p1 ext4              1.0         163142ce-c39b-4d6e-a8dc-89dd80d04e85  159.9M     0% /raid/part1
+  ├─md0p2 ext4              1.0         a1582b62-86e3-4827-977b-371d1bbde5d8    250M     0% /raid/part2
+  ├─md0p3 ext4              1.0         b7e36350-a2ac-4c8f-b237-bb98a00f652e  426.5M     0% /raid/part3
+  ├─md0p4 ext4              1.0         04bb42fa-cfd6-48a6-96bd-a4a89b044b2a  825.3M     0% /raid/part4
+  └─md0p5 ext4              1.0         a359777f-f6f7-45cd-9783-eb6803bd9459   83.5M     0% /raid/part5
+sdf       linux_raid_member 1.2   UBS:0 cc513b0a-bd51-aeae-4192-a97c0236b539
+└─md0
+  ├─md0p1 ext4              1.0         163142ce-c39b-4d6e-a8dc-89dd80d04e85  159.9M     0% /raid/part1
+  ├─md0p2 ext4              1.0         a1582b62-86e3-4827-977b-371d1bbde5d8    250M     0% /raid/part2
+  ├─md0p3 ext4              1.0         b7e36350-a2ac-4c8f-b237-bb98a00f652e  426.5M     0% /raid/part3
+  ├─md0p4 ext4              1.0         04bb42fa-cfd6-48a6-96bd-a4a89b044b2a  825.3M     0% /raid/part4
+  └─md0p5 ext4              1.0         a359777f-f6f7-45cd-9783-eb6803bd9459   83.5M     0% /raid/part5
+sr0
 
 ```
